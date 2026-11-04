@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<!--
+  恋爱体检报告 · 单文件网页
+  修改说明见同目录 README.md
+
+  快速定位：
+    const WHO        → 她的名字
+    class="hospital" → 诊所名称
+    const vals       → 六项指标数值
+    class="letter"   → 医生私信（最值得改）
+    :root            → 四个配色变量
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#12332E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="体检报告">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>恋爱体检报告 · 心内科门诊</title>
+<style>
+  :root{
+    --paper:#F7F8F6;
+    --ink:#12332E;
+    --steel:#8FA6A0;
+    --pulse:#E04B3A;
+    --line:#D7DEDA;
+    --serif:"Songti SC","SimSun","Noto Serif CJK SC",Georgia,serif;
+    --sans:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+    --mono:ui-monospace,"Cascadia Mono","SFMono-Regular",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.75;
+    display:flex;
+    justify-content:center;
+    padding:32px 16px 64px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .sheet{
+    width:100%;
+    max-width:560px;
+    background:#fff;
+    border:1px solid var(--line);
+    padding:36px 32px 40px;
+    position:relative;
+  }
+
+  /* ── 抬头 ── */
+  .head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    padding-bottom:18px;
+    border-bottom:2px solid var(--ink);
+  }
+  .hospital{
+    font-family:var(--serif);
+    font-size:22px;
+    letter-spacing:.14em;
+    line-height:1.3;
+  }
+  .dept{
+    font-size:12px;
+    color:var(--steel);
+    letter-spacing:.24em;
+    margin-top:4px;
+  }
+  .meta{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--steel);
+    text-align:right;
+    line-height:1.9;
+    white-space:nowrap;
+  }
+
+  /* ── 心电图 ── */
+  .ecg{
+    margin:22px 0 6px;
+    height:78px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+    overflow:hidden;
+  }
+  .ecg canvas{display:block;width:100%;height:100%}
+  .ecg-label{
+    position:absolute;
+    right:0;top:0;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--steel);
+    letter-spacing:.1em;
+    background:#fff;
+    padding-left:6px;
+  }
+  .ecg-label b{color:var(--pulse);font-weight:500}
+
+  /* ── 受检人 ── */
+  .subject{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:14px 0;
+    font-size:13px;
+    border-bottom:1px dashed var(--line);
+  }
+  .subject span:last-child{font-family:var(--mono);color:var(--steel)}
+
+  /* ── 指标表 ── */
+  .items{list-style:none;margin-top:6px}
+  .item{
+    display:grid;
+    grid-template-columns:1fr auto;
+    align-items:baseline;
+    gap:8px;
+    padding:15px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .item .v{color:var(--steel);transition:color .3s ease}
+  .item.on .v{color:var(--ink);animation:pop .3s ease}
+  @keyframes pop{from{opacity:.15}to{opacity:1}}
+  .item-name{font-size:15px}
+  .item-note{display:block;font-size:11.5px;color:var(--steel);line-height:1.6;margin-top:2px}
+  .item-val{
+    font-family:var(--mono);
+    font-size:15px;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+  .item-val small{font-size:10px;color:var(--steel);margin-left:2px}
+  .flag{
+    display:inline-block;
+    font-size:10px;
+    letter-spacing:.08em;
+    color:var(--pulse);
+    border:1px solid var(--pulse);
+    border-radius:2px;
+    padding:0 3px;
+    margin-left:6px;
+    vertical-align:1px;
+  }
+  .flag[hidden]{display:none}
+
+  /* 扫描线 */
+  .scan{position:relative}
+  .scan::after{
+    content:"";
+    position:absolute;
+    left:-32px;right:-32px;
+    height:1px;
+    top:0;
+    background:linear-gradient(90deg,transparent,var(--pulse),transparent);
+    opacity:0;
+    pointer-events:none;
+  }
+  .scan.busy::after{opacity:.9;animation:sweep 1.1s linear infinite}
+  @keyframes sweep{from{top:0}to{top:100%}}
+
+  /* ── 结论 ── */
+  .verdict{
+    display:none;
+    margin-top:26px;
+    padding-top:22px;
+    border-top:2px solid var(--ink);
+  }
+  .verdict.on{display:block;animation:rise .65s ease both}
+  .verdict h2{
+    font-family:var(--serif);
+    font-size:17px;
+    letter-spacing:.2em;
+    font-weight:500;
+    margin-bottom:10px;
+  }
+  .verdict p{font-size:14px;max-width:44em}
+  .verdict .concl{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--steel);
+    margin-top:10px;
+    letter-spacing:.04em;
+  }
+
+  /* ── 按钮 ── */
+  .actions{margin-top:30px;display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font:inherit;
+    font-size:14px;
+    padding:11px 22px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:#fff;
+    cursor:pointer;
+    transition:background .2s,color .2s,opacity .2s;
+  }
+  button.ghost{background:transparent;color:var(--ink)}
+  button:hover{background:var(--pulse);border-color:var(--pulse);color:#fff}
+  button.ghost:hover{background:var(--pulse);color:#fff}
+  button:focus-visible{outline:2px solid var(--pulse);outline-offset:3px}
+  button:disabled{opacity:.45;cursor:default}
+  button:disabled:hover{background:var(--ink);border-color:var(--ink);color:#fff}
+  button.ghost:disabled:hover{background:transparent;color:var(--ink)}
+
+  /* ── 私信 ── */
+  .letter{
+    margin-top:26px;
+    border-left:2px solid var(--ink);
+    padding:2px 0 2px 20px;
+    font-family:var(--serif);
+    font-size:15px;
+    line-height:2;
+    display:none;
+  }
+  .letter.show{display:block;animation:rise .7s ease both}
+  .letter .sig{
+    display:block;
+    margin-top:14px;
+    font-family:var(--sans);
+    font-size:12px;
+    color:var(--steel);
+    letter-spacing:.08em;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  /* ── 印章 ── */
+  .stamp{
+    position:absolute;
+    right:26px;
+    bottom:26px;
+    width:104px;height:104px;
+    border:2px solid var(--pulse);
+    border-radius:50%;
+    color:var(--pulse);
+    display:grid;
+    place-content:center;
+    text-align:center;
+    transform:rotate(-13deg) scale(.86);
+    opacity:0;
+    transition:opacity .5s ease,transform .5s ease;
+    pointer-events:none;
+  }
+  .stamp.on{opacity:.82;transform:rotate(-13deg) scale(1)}
+  .stamp b{
+    display:block;
+    font-family:var(--serif);
+    font-size:19px;
+    letter-spacing:.18em;
+    line-height:1.2;
+  }
+  .stamp i{
+    font-style:normal;
+    font-size:9px;
+    letter-spacing:.22em;
+  }
+
+  .hint{
+    margin-top:22px;
+    font-size:11.5px;
+    color:var(--steel);
+    line-height:1.7;
+  }
+
+  /* ── 爱心雨 ── */
+  .rain{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+    z-index:1;
+  }
+  .sheet > *:not(.rain):not(.stamp){position:relative;z-index:2}
+  .stamp{z-index:3}
+
+  @media (max-width:480px){
+    body{padding:0 0 40px}
+    .sheet{border:none;border-top:1px solid var(--line);padding:26px 20px 34px;min-height:100vh}
+    .hospital{font-size:19px}
+    .stamp{width:88px;height:88px;right:16px;bottom:16px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .item{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <header class="head">
+    <div>
+      <div class="hospital">黎医生恋爱诊所</div>
+      <div class="dept">心 内 科 · 门 诊</div>
+    </div>
+    <div class="meta">
+      NO. <span id="no">20261030</span><br>
+      <span id="date"></span>
+    </div>
+  </header>
+
+  <div class="ecg" aria-hidden="true">
+    <canvas id="ecg"></canvas>
+    <div class="ecg-label">HR <b id="hr">--</b> bpm</div>
+  </div>
+
+  <div class="subject">
+    <span>受检人：<b id="who">小可爱</b></span>
+    <span>检查项目：全身心动扫描</span>
+  </div>
+
+  <ul class="items scan" id="items">
+    <li class="item" data-name="心动频率" data-note="静息状态下，见到你的次数与心率的变化关系" data-val="128" data-unit="bpm" data-flag="偏高">
+      <div><span class="item-name">心动频率</span><span class="item-note">静息状态下，见到你时的心率变化</span></div>
+      <div class="item-val"><span class="v">—</span><small>bpm</small><span class="flag" hidden>偏高</span></div>
+    </li>
+    <li class="item" data-note="单位：每 24 小时，无端想起你的次数">
+      <div><span class="item-name">想我次数</span><span class="item-note">每 24 小时无端想起你的次数</span></div>
+      <div class="item-val"><span class="v">—</span><small>次/天</small><span class="flag" hidden>偏高</span></div>
+    </li>
+    <li class="item">
+      <div><span class="item-name">吃醋指数</span><span class="item-note">参考他人聊天记录时的耐受度，越低越危险</span></div>
+      <div class="item-val"><span class="v">—</span><small>级</small><span class="flag" hidden>异常</span></div>
+    </li>
+    <li class="item">
+      <div><span class="item-name">回消息速度</span><span class="item-note">从消息发出到「对方正在输入」出现的时间</span></div>
+      <div class="item-val"><span class="v">—</span><small>秒</small><span class="flag" hidden>偏快</span></div>
+    </li>
+    <li class="item">
+      <div><span class="item-name">撒娇浓度</span><span class="item-note">语气词「嘛」「呀」「哦」的占比</span></div>
+      <div class="item-val"><span class="v">—</span><small>%</small><span class="flag" hidden>超标</span></div>
+    </li>
+    <li class="item">
+      <div><span class="item-name">抗甜能力</span><span class="item-note">接受突如其来的夸奖时，脸红的持续时长</span></div>
+      <div class="item-val"><span class="v">—</span><small>分</small><span class="flag" hidden>不足</span></div>
+    </li>
+  </ul>
+
+  <section class="verdict" id="verdict">
+    <h2>总 检 结 论</h2>
+    <p>各项指标均在「过分喜欢」区间。未见任何需要治疗的异常，除了一项：<b>太可爱</b>，目前医学上无解，只能长期观察。</p>
+    <div class="concl">建议：每日拥抱不少于一次，观察期：一辈子。</div>
+  </section>
+
+  <div class="actions">
+    <button id="start">开始体检</button>
+    <button id="openLetter" class="ghost" disabled>查看医生私信</button>
+    <button id="sound" class="ghost" aria-pressed="true">声音 开</button>
+  </div>
+
+  <div class="letter" id="letter">
+    其实这份报告是我瞎编的。<br>
+    但我写每一行的时候，想的都是真的你。<br>
+    如果哪天你觉得没人站在你这边，
+    记得这里有一份报告，结论那一栏永远写着你的名字。<span class="sig">—— 主治医师：黎医生</span>
+  </div>
+
+  <div class="stamp" id="stamp">
+    <b>恋爱中</b><i>已 检 出</i>
+  </div>
+
+  <p class="hint">本报告由心内科（自封）出具，不具备任何医学效力，仅具备一点点喜欢你。</p>
+  <canvas class="rain" id="rain" aria-hidden="true"></canvas>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  /* ── 改成她的名字 ── */
+  const WHO = "xx";
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const who = $("#who"); who.textContent = WHO;
+
+  const d = new Date();
+  $("#date").textContent = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+  $("#no").textContent = `2026${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+
+  /* ── 心电图：种子随机 + 搏动 ── */
+  const cv = $("#ecg"), ctx = cv.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W = 0, H = 0, dpr = 1, t = 0, running = false, beat = 0;
+
+  function mulberry32(a){ return function(){ a|=0; a = a+0x6D2B79F5|0; let x = Math.imul(a^a>>>15,1|a); x = x+Math.imul(x^x>>>7,61|x); return ((x^x>>>14)>>>0)/4294967296; }; }
+  const rnd = mulberry32(20261030);
+  const noise = Array.from({length:64}, () => rnd()-0.5);
+
+  function resize(){
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W*dpr; cv.height = H*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  // 一次心跳的单周期波形：P 波 - QRS 主峰 - T 波
+  function wave(p){
+    if (p < 0.12) return 0;
+    if (p < 0.20) return -0.12 * Math.sin((p-0.12)/0.08*Math.PI);
+    if (p < 0.24) return 0.28 * Math.sin((p-0.20)/0.04*Math.PI);
+    if (p < 0.27) return -1.0 * Math.sin((p-0.24)/0.03*Math.PI);
+    if (p < 0.31) return 0.34 * Math.sin((p-0.27)/0.04*Math.PI);
+    if (p < 0.33) return 0;
+    if (p < 0.52) return 0.16 * Math.sin((p-0.33)/0.19*Math.PI);
+    return 0;
+  }
+
+  function draw(){
+    if (!W) resize();
+    ctx.clearRect(0,0,W,H);
+    const mid = H*0.62, amp = H*0.34, n = Math.floor(W);
+    const speed = running ? 0.010 : 0.0045;
+    const period = running ? 0.30 : 0.72;
+
+    ctx.beginPath();
+    for (let i=0;i<=n;i++){
+      const x = i;
+      const phase = ((i/W) - t) / period;
+      const p = phase - Math.floor(phase);
+      const v = wave(p) * amp;
+      const nm = noise[(i + Math.floor(t*40)) % noise.length] * 1.1;
+      const y = mid - v + nm;
+      i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+    }
+    ctx.strokeStyle = "#E04B3A";
+    ctx.lineWidth = 1.25;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // 基线
+    ctx.beginPath(); ctx.moveTo(0,mid); ctx.lineTo(W,mid);
+    ctx.strokeStyle = "rgba(143,166,160,.35)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  function loop(){
+    t += 0.0016;
+    if (running) t += 0.0012;
+    draw();
+    if (running){
+      beat += 1;
+      $("#hr").textContent = 118 + (beat % 9);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function startEcg(){
+    if (reduce) { draw(); return; }
+    loop();
+  }
+
+  addEventListener("resize", () => { resize(); draw(); });
+  resize(); draw(); startEcg();
+
+  /* ── 检测流程 ── */
+  const items = Array.from(document.querySelectorAll(".item"));
+  const vals = ["128","37","4","2.1","86","12"];
+  const flags = ["偏高","偏高","异常","偏快","超标","不足"];
+  const units = ["bpm","次/天","级","秒","%","分"];
+  const startBtn = $("#start"), letterBtn = $("#openLetter");
+  const list = $("#items"), verdict = $("#verdict"), stamp = $("#stamp");
+  let done = false;
+
+  const wait = ms => new Promise(r => setTimeout(r, reduce ? 0 : ms));
+
+  async function run(){
+    if (done) return;
+    done = true;
+    startBtn.disabled = true;
+    startBtn.textContent = "检测中…";
+    list.classList.add("busy");
+    initAudio();
+    tone(392, .18, "sine", .05);
+    tone(587.33, .12, "sine", .04, .16);
+
+    for (let i=0;i<items.length;i++){
+      const li = items[i];
+      li.classList.add("on");
+      const v = li.querySelector(".v");
+      const flag = li.querySelector(".flag");
+      // 数字快速跳动后定格
+      const target = vals[i];
+      if (!reduce){
+        for (let k=0;k<6;k++){
+          v.textContent = (Math.random()*200).toFixed(target.includes(".")?1:0);
+          await wait(45);
+        }
+      }
+      v.textContent = target;
+      flag.hidden = false;
+      flag.textContent = flags[i];
+      tone(740 + i * 60, .07, "triangle", .045);
+      // 补上单位（防止结构缺失）
+      if (!li.querySelector("small")) {
+        const s = document.createElement("small"); s.textContent = units[i];
+        li.querySelector(".item-val").insertBefore(s, flag);
+      }
+      await wait(reduce ? 0 : 420);
+    }
+
+    list.classList.remove("busy");
+    await wait(260);
+    verdict.classList.add("on");
+    stamp.classList.add("on");
+    startRain();
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, .32, "sine", .055, i * .13));
+    startBtn.textContent = "已 完 成";
+    letterBtn.disabled = false;
+    document.getElementById("hr").textContent = "126";
+  }
+
+  startBtn.addEventListener("click", run);
+  letterBtn.addEventListener("click", () => {
+    $("#letter").classList.add("show");
+    letterBtn.disabled = true;
+    letterBtn.textContent = "已 读 完";
+    tone(523.25, .5, "sine", .05);
+    tone(392, .6, "sine", .035, .12);
+    $("#letter").scrollIntoView({behavior: reduce ? "auto" : "smooth", block:"nearest"});
+  });
+
+  /* ── 音效：Web Audio 合成，不依赖任何音频文件 ── */
+  let ac = null, soundOn = true;
+  function initAudio(){
+    if (!ac){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ac = new AC();
+    }
+    if (ac.state === "suspended") ac.resume();
+  }
+  function tone(freq, dur=.09, type="sine", vol=.05, delay=0){
+    if (!soundOn || !ac) return;
+    const t0 = ac.currentTime + delay;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + .01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t0); o.stop(t0 + dur + .03);
+  }
+  const soundBtn = $("#sound");
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundBtn.setAttribute("aria-pressed", String(soundOn));
+    soundBtn.textContent = soundOn ? "声音 开" : "声音 关";
+    if (soundOn){ initAudio(); tone(660, .1, "sine", .05); }
+  });
+
+  /* ── 爱心雨 ── */
+  const rc = $("#rain"), rx = rc.getContext("2d");
+  const hearts = [];
+  let rainOn = false, last = 0, rainT = 0;
+  const COLORS = ["#E04B3A", "#E4736A", "#D98A86"];
+
+  function sizeRain(){
+    const s = rc.parentElement.getBoundingClientRect();
+    const d = Math.min(devicePixelRatio || 1, 2);
+    rc.width = Math.floor(s.width * d);
+    rc.height = Math.floor(s.height * d);
+    rx.setTransform(d, 0, 0, d, 0, 0);
+    rc._w = s.width; rc._h = s.height;
+  }
+  addEventListener("resize", sizeRain);
+  sizeRain();
+
+  function heartShape(c, s){
+    c.beginPath();
+    c.moveTo(0, s * .32);
+    c.bezierCurveTo(s * .52, -s * .38, s * 1.08, s * .34, 0, s * 1.02);
+    c.bezierCurveTo(-s * 1.08, s * .34, -s * .52, -s * .38, 0, s * .32);
+    c.closePath();
+  }
+
+  function spawnHeart(){
+    const w = rc._w || 400;
+    hearts.push({
+      x: Math.random() * w,
+      y: -30 - Math.random() * 60,
+      s: 5 + Math.random() * 9,
+      vy: 26 + Math.random() * 40,
+      sway: Math.random() * Math.PI * 2,
+      swaySp: .6 + Math.random() * 1.1,
+      rot: (Math.random() - .5) * .8,
+      rotSp: (Math.random() - .5) * 1.2,
+      a: .45 + Math.random() * .45,
+      c: COLORS[(Math.random() * COLORS.length) | 0]
+    });
+  }
+
+  function rainLoop(ts){
+    if (!last) last = ts;
+    const dt = Math.min((ts - last) / 1000, .05);
+    last = ts;
+    rx.clearRect(0, 0, rc._w, rc._h);
+
+    for (let i = hearts.length - 1; i >= 0; i--){
+      const h = hearts[i];
+      h.sway += h.swaySp * dt;
+      h.y += h.vy * dt;
+      h.x += Math.sin(h.sway) * 18 * dt;
+      h.rot += h.rotSp * dt;
+      if (h.y > rc._h + 40) { hearts.splice(i, 1); continue; }
+      rx.save();
+      rx.translate(h.x, h.y);
+      rx.rotate(h.rot);
+      rx.globalAlpha = h.a;
+      rx.fillStyle = h.c;
+      heartShape(rx, h.s);
+      rx.fill();
+      rx.restore();
+    }
+
+    if (rainOn && rainT < 7){
+      if (!rainLoop._acc) rainLoop._acc = 0;
+      rainLoop._acc += dt;
+      if (rainLoop._acc > .10){ rainLoop._acc = 0; spawnHeart(); rainT += .10; }
+    }
+    if (hearts.length || rainOn) requestAnimationFrame(rainLoop);
+    else { rx.clearRect(0, 0, rc._w, rc._h); last = 0; }
+  }
+
+  function startRain(){
+    if (reduce) return;
+    sizeRain();
+    rainOn = true; rainT = 0; last = 0;
+    for (let i = 0; i < 8; i++) spawnHeart();
+    requestAnimationFrame(rainLoop);
+  }
+
+  // 静态预览：index.html#rain 直接把爱心铺满，方便截图检查
+  if (location.hash.includes("rain")){
+    sizeRain();
+    for (let i = 0; i < 28; i++){
+      spawnHeart();
+      const h = hearts[hearts.length - 1];
+      h.x = Math.random() * rc._w;
+      h.y = Math.random() * rc._h;
+    }
+    rainOn = true; rainT = 99;
+    rainLoop(performance.now());
+    rainOn = false;
+  }
+
+  // 键盘快捷：回车开始
+  addEventListener("keydown", e => {
+    if (e.key === "Enter" && !done && document.activeElement !== letterBtn) run();
+  });
+
+  // 演示模式：index.html#auto 自动跑完
+  if (location.hash === "#auto") setTimeout(run, 300);
+
+  // PWA：注册 Service Worker，装到主屏后可离线打开
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
